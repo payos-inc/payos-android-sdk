@@ -79,7 +79,10 @@ internal object PasskeyJson {
         resultParser: (JSONObject) -> T
     ): PasskeySessionStatusData<T>? {
         val json = data ?: return null
+        // {} mid-flow must not reach the strict result parser, or the
+        // caller goes blind to status/errorCode.
         val completionPayload = json.optJSONObject("completionResponse")
+            ?.takeIf { it.length() > 0 }
         return PasskeySessionStatusData(
             sessionId = json.optStringOrNull("sessionId").orEmpty(),
             status = PasskeySessionStatus.from(json.optStringOrNull("status")),

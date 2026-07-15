@@ -111,4 +111,4 @@ override fun onNewIntent(intent: Intent) {
 
 ## Version
 
-0.1.0-staging.1.3
+0.1.1-staging.3.1

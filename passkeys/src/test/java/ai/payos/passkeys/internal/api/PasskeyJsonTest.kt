@@ -99,4 +99,34 @@ class PasskeyJsonTest {
         assertTrue(status?.completionResponse?.success == true)
         assertEquals("pi_123", status?.completionResponse?.paymentIntentId)
     }
+
+    @Test
+    fun ignoresEmptyCompletionResponseOnStatusPolls() {
+        val status = PasskeyJson.sessionStatus(
+            JSONObject()
+                .put("sessionId", "pksess_123")
+                .put("status", "callback_received")
+                .put("completionResponse", JSONObject()),
+            PasskeyJson::passkeyResult
+        )
+
+        assertEquals(PasskeySessionStatus.CALLBACK_RECEIVED, status?.status)
+        assertEquals(null, status?.completionResponse)
+    }
+
+    @Test
+    fun parsesFailedSessionStatusWithoutCompletionResponse() {
+        val status = PasskeyJson.sessionStatus(
+            JSONObject()
+                .put("sessionId", "pksess_123")
+                .put("status", "failed")
+                .put("errorCode", "authentication_submit_failed")
+                .put("errorMessage", "Payment intent pi_123 has expired"),
+            PasskeyJson::passkeyResult
+        )
+
+        assertEquals(PasskeySessionStatus.FAILED, status?.status)
+        assertEquals("authentication_submit_failed", status?.errorCode)
+        assertEquals(null, status?.completionResponse)
+    }
 }

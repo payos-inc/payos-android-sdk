@@ -250,6 +250,7 @@ class PasskeysClient internal constructor(
             }
             try {
                 waitForHostedCeremonyReturn(session)
+                presentation.dismiss()
             } finally {
                 presentation.clear()
             }
