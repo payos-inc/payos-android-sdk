@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 
 internal interface PasskeyPresentation {
     fun clear()
+
+    fun dismiss() = clear()
 }
 
 internal interface PasskeyPresenter {
@@ -40,6 +42,7 @@ internal class CustomTabsPasskeyPresenter : PasskeyPresenter {
             try {
                 CustomTabsIntent.Builder()
                     .setShowTitle(true)
+                    .setSendToExternalDefaultHandlerEnabled(true)
                     .build()
                     .launchUrl(activity, uri)
             } catch (_: ActivityNotFoundException) {
@@ -94,9 +97,31 @@ internal class CustomTabsPasskeyPresenter : PasskeyPresenter {
             registered = false
         }
 
+        override fun dismiss() {
+            clear()
+            // Custom tabs have no close API; relaunching the host with
+            // NEW_TASK|CLEAR_TOP pops the tab off the back stack.
+            val intent = Intent(hostActivity, hostActivity.javaClass).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            }
+            try {
+                hostActivity.startActivity(intent)
+            } catch (_: Exception) {
+            }
+        }
+
         override fun onActivityPaused(activity: Activity) {
             if (activity === hostActivity) {
                 browserOpened = true
+                // Re-covered by the tab or a transparent system sheet
+                // (e.g. Credential Manager): the pending cancel was a
+                // transient resume, not the user returning.
+                handler.removeCallbacks(cancelRunnable)
+                cancellationPosted = false
             }
         }
 
@@ -119,6 +144,6 @@ internal class CustomTabsPasskeyPresenter : PasskeyPresenter {
     }
 
     private companion object {
-        const val USER_CANCEL_DELAY_MILLIS = 500L
+        const val USER_CANCEL_DELAY_MILLIS = 1_000L
     }
 }
