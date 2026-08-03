@@ -7,6 +7,7 @@ import ai.payos.passkeys.internal.api.HostedPasskeySession
 import ai.payos.passkeys.internal.api.PasskeyApiClient
 import ai.payos.passkeys.internal.api.PasskeyJson
 import ai.payos.passkeys.internal.api.PasskeySessionStatus
+import ai.payos.passkeys.internal.api.StartPasskeySessionOutcome
 import ai.payos.passkeys.internal.api.optStringOrNull
 import ai.payos.passkeys.internal.link.PasskeyCallback
 import ai.payos.passkeys.internal.presentation.CustomTabsPasskeyPresenter
@@ -137,12 +138,14 @@ class PasskeysClient internal constructor(
         activity: Activity,
         cardId: String
     ): RegisterResult {
-        val session = startSession(
+        val outcome = startSession(
             JSONObject().apply {
                 put("cardId", cardId)
                 currentAppRoutingId()?.let { put("appRoutingId", it) }
             }
         )
+        val session = (outcome as? StartPasskeySessionOutcome.Hosted)?.session
+            ?: throw PayOSError.InvalidState("Passkey registration cannot be waived")
 
         runHostedCeremony(
             activity = activity,
@@ -172,13 +175,26 @@ class PasskeysClient internal constructor(
         paymentIntentId: String,
         paymentId: String? = null
     ): PasskeyResult {
-        val session = startSession(
+        val outcome = startSession(
             JSONObject().apply {
                 put("paymentIntentId", paymentIntentId)
                 paymentId?.let { put("paymentId", it) }
                 currentAppRoutingId()?.let { put("appRoutingId", it) }
             }
         )
+
+        // Waived orgs skip the hosted passkey ceremony: the backend has
+        // already submitted authentication, so there is no session to drive.
+        val session = when (outcome) {
+            is StartPasskeySessionOutcome.Waived -> return PasskeyResult(
+                success = true,
+                paymentIntentId = paymentIntentId,
+                paymentId = paymentId,
+                message = "Passkey authentication waived",
+                passkeyWaived = true
+            )
+            is StartPasskeySessionOutcome.Hosted -> outcome.session
+        }
 
         runHostedCeremony(
             activity = activity,
@@ -217,8 +233,8 @@ class PasskeysClient internal constructor(
         }
     }
 
-    private suspend fun startSession(body: JSONObject): HostedPasskeySession {
-        return PasskeyJson.hostedSession(
+    private suspend fun startSession(body: JSONObject): StartPasskeySessionOutcome {
+        return PasskeyJson.startSessionOutcome(
             apiClient.post("/passkeys/authenticate", body)
         )
     }
