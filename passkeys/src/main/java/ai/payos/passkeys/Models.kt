@@ -37,7 +37,8 @@ data class PasskeyResult @JvmOverloads constructor(
     val success: Boolean,
     val paymentIntentId: String? = null,
     val paymentId: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    val passkeyWaived: Boolean = false
 )
 
 enum class PasskeyFlowType {

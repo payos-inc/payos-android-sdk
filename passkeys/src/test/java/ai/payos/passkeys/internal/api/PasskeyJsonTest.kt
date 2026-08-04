@@ -31,7 +31,7 @@ class PasskeyJsonTest {
 
     @Test
     fun parsesHostedSessionData() {
-        val session = PasskeyJson.hostedSession(
+        val outcome = PasskeyJson.startSessionOutcome(
             ApiEnvelope(
                 statusCode = 200,
                 data = JSONObject()
@@ -45,15 +45,58 @@ class PasskeyJsonTest {
             )
         )
 
+        val session = (outcome as StartPasskeySessionOutcome.Hosted).session
         assertEquals("pksess_123", session.sessionId)
         assertEquals("https://issuer.example/auth", session.authenticationUri)
         assertEquals(2026, session.expiresAt?.atZone(java.time.ZoneOffset.UTC)?.year)
     }
 
     @Test
+    fun parsesWaivedStartSessionData() {
+        val outcome = PasskeyJson.startSessionOutcome(
+            ApiEnvelope(
+                statusCode = 200,
+                data = JSONObject()
+                    .put("success", true)
+                    .put("passkeyWaived", true)
+                    .put("network", "visa")
+                    .put("authValid", true),
+                message = null,
+                code = null,
+                environment = "sandbox"
+            )
+        )
+
+        assertEquals(StartPasskeySessionOutcome.Waived, outcome)
+    }
+
+    @Test
+    fun reportsMissingSessionFieldsAsInvalidState() {
+        try {
+            PasskeyJson.startSessionOutcome(
+                ApiEnvelope(
+                    statusCode = 202,
+                    data = JSONObject()
+                        .put("enrollmentStatus", "pending")
+                        .put("enrollmentId", "enroll_123"),
+                    message = "Card enrollment is pending",
+                    code = null,
+                    environment = "sandbox"
+                )
+            )
+            fail("Expected invalid state error")
+        } catch (error: PayOSError.InvalidState) {
+            assertEquals(
+                "Passkey start response was missing sessionId or authenticationUri",
+                error.message
+            )
+        }
+    }
+
+    @Test
     fun rejectsWebPasskeyFlowForHostedSessionData() {
         try {
-            PasskeyJson.hostedSession(
+            PasskeyJson.startSessionOutcome(
                 ApiEnvelope(
                     statusCode = 200,
                     data = JSONObject()

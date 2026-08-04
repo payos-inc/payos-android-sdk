@@ -21,7 +21,7 @@ internal object PasskeyJson {
         )
     }
 
-    fun hostedSession(envelope: ApiEnvelope): HostedPasskeySession {
+    fun startSessionOutcome(envelope: ApiEnvelope): StartPasskeySessionOutcome {
         val json = envelope.data
             ?: throw PayOSError.DecodingError("Passkey start returned no session data")
 
@@ -33,16 +33,32 @@ internal object PasskeyJson {
             )
         }
 
+        // Waived orgs get a terminal no-ceremony response: the backend has
+        // already submitted authentication, so there is no session to drive.
+        if (json.optBoolean("passkeyWaived", false)) {
+            return StartPasskeySessionOutcome.Waived
+        }
+
         if (json.has("passkeyFlow")) {
             throw PayOSError.DecodingError(
                 "Backend returned the web passkey flow; native Android passkey sessions require sessionId and authenticationUri"
             )
         }
 
-        return HostedPasskeySession(
-            sessionId = json.requiredString("sessionId"),
-            authenticationUri = json.requiredString("authenticationUri"),
-            expiresAt = json.optInstant("expiresAt")
+        val sessionId = json.optStringOrNull("sessionId")
+        val authenticationUri = json.optStringOrNull("authenticationUri")
+        if (sessionId == null || authenticationUri == null) {
+            throw PayOSError.InvalidState(
+                "Passkey start response was missing sessionId or authenticationUri"
+            )
+        }
+
+        return StartPasskeySessionOutcome.Hosted(
+            HostedPasskeySession(
+                sessionId = sessionId,
+                authenticationUri = authenticationUri,
+                expiresAt = json.optInstant("expiresAt")
+            )
         )
     }
 
@@ -65,7 +81,8 @@ internal object PasskeyJson {
             success = data.optBoolean("success"),
             paymentIntentId = data.firstStringOrNull("paymentIntentId", "payment_intent_id"),
             paymentId = data.firstStringOrNull("paymentId", "payment_id"),
-            message = data.optStringOrNull("message")
+            message = data.optStringOrNull("message"),
+            passkeyWaived = data.optBoolean("passkeyWaived", false)
         )
     }
 
@@ -150,6 +167,11 @@ internal data class HostedPasskeySession(
     val authenticationUri: String,
     val expiresAt: Instant?
 )
+
+internal sealed class StartPasskeySessionOutcome {
+    data class Hosted(val session: HostedPasskeySession) : StartPasskeySessionOutcome()
+    object Waived : StartPasskeySessionOutcome()
+}
 
 internal enum class PasskeySessionStatus {
     PENDING,
