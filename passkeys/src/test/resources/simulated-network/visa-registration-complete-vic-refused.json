@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "success": true,
+      "enrollmentId": "enrollmentId_sim",
+      "network": "visa",
+      "deviceBindingStatus": "ACTIVE",
+      "passkeyEnabled": true,
+      "message": "Passkey successfully enrolled",
+      "vicEnrolled": false,
+      "vicEnrollment": {
+        "success": false,
+        "code": "agentic_enrollment_failed",
+        "retryable": true,
+        "message": "Agentic enrollment failed. Create a new session and try again."
+      }
+    },
+    "environment": "sandbox"
+  }
+}

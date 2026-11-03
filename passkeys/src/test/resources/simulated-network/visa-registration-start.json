@@ -1,0 +1,24 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "eligible": true,
+      "sdkPlatform": "ios",
+      "sessionId": "sessionId_sim",
+      "authenticationUri": "https://sandbox.api.payos.ai/simulated-network/visa/authenticate?sid=sessionId_sim&t=ticket_sim",
+      "expiresAt": "2099-01-01T00:10:00.000Z",
+      "flowType": "registration",
+      "network": "visa",
+      "enrollmentId": "enrollmentId_sim",
+      "enrollmentStatus": "enrolled",
+      "cardId": null,
+      "paymentIntentId": null,
+      "sandboxCeremony": {
+        "network": "visa",
+        "kind": "registration"
+      }
+    },
+    "environment": "sandbox"
+  }
+}

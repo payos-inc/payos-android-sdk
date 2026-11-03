@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "success": true,
+      "paymentIntentId": "paymentIntentId_sim",
+      "authValid": true,
+      "authSubmittedAt": "2099-01-01T00:10:00.000Z",
+      "networkProvider": null,
+      "paymentId": null,
+      "message": "Authentication completed successfully"
+    },
+    "environment": "sandbox"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "success": true,
+      "enrollmentId": "enrollmentId_sim",
+      "network": "visa",
+      "deviceBindingStatus": "ACTIVE",
+      "passkeyEnabled": true,
+      "message": "Passkey successfully enrolled",
+      "vicEnrolled": true,
+      "vicEnrollment": {
+        "success": true,
+        "retryable": false
+      }
+    },
+    "environment": "sandbox"
+  }
+}

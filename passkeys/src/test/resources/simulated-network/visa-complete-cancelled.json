@@ -1,0 +1,9 @@
+{
+  "status": 400,
+  "body": {
+    "error": true,
+    "message": "User cancelled",
+    "code": "passkey_cancelled",
+    "environment": "sandbox"
+  }
+}
