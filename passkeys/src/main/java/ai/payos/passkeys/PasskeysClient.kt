@@ -8,6 +8,7 @@ import ai.payos.passkeys.internal.api.PasskeyApiClient
 import ai.payos.passkeys.internal.api.PasskeyJson
 import ai.payos.passkeys.internal.api.PasskeySessionStatus
 import ai.payos.passkeys.internal.api.StartPasskeySessionOutcome
+import ai.payos.passkeys.internal.api.StartSessionInfo
 import ai.payos.passkeys.internal.api.optStringOrNull
 import ai.payos.passkeys.internal.link.PasskeyCallback
 import ai.payos.passkeys.internal.presentation.CustomTabsPasskeyPresenter
@@ -134,18 +135,40 @@ class PasskeysClient internal constructor(
         }
     }
 
+    /**
+     * Registers a passkey. [cardId] may be omitted when the session secret
+     * already names the subject (agentic setup session). A waived
+     * registration returns `passkeyWaived = true` instead of throwing.
+     */
     suspend fun register(
         activity: Activity,
-        cardId: String
+        cardId: String? = null
     ): RegisterResult {
         val outcome = startSession(
             JSONObject().apply {
-                put("cardId", cardId)
+                cardId?.let { put("cardId", it) }
                 currentAppRoutingId()?.let { put("appRoutingId", it) }
             }
         )
-        val session = (outcome as? StartPasskeySessionOutcome.Hosted)?.session
-            ?: throw PayOSError.InvalidState("Passkey registration cannot be waived")
+        val session = when (outcome) {
+            is StartPasskeySessionOutcome.Waived -> {
+                val start = outcome.start
+                val agentic = PasskeyJson.agenticOutcome(
+                    network = start.network,
+                    vicEnrolled = start.vicEnrolled,
+                    vicEnrollment = start.vicEnrollment,
+                    bindingSucceeded = true,
+                    strict = false
+                )
+                return RegisterResult(
+                    success = start.success != false && agentic.enrolled,
+                    enrollmentId = start.enrollmentId,
+                    message = start.message ?: "Passkey registration waived",
+                    passkeyWaived = true
+                )
+            }
+            is StartPasskeySessionOutcome.Hosted -> outcome.session
+        }
 
         runHostedCeremony(
             activity = activity,
@@ -162,11 +185,103 @@ class PasskeysClient internal constructor(
 
     fun register(
         activity: Activity,
-        cardId: String,
+        cardId: String?,
         callback: PayOSCallback<RegisterResult>
     ) {
         launchCallback(callback) {
             register(activity, cardId)
+        }
+    }
+
+    /** Registers the subject the session secret is bound to (no card ID). */
+    fun register(
+        activity: Activity,
+        callback: PayOSCallback<RegisterResult>
+    ) {
+        register(activity, null, callback)
+    }
+
+    /**
+     * Runs the passkey flow for whatever the session secret is bound to (an
+     * agentic setup enrollment, or a checkout intent). The server decides the
+     * subject and the flow type; no IDs are sent.
+     */
+    suspend fun authenticate(activity: Activity): PasskeyFlowResult {
+        val outcome = startSession(
+            JSONObject().apply {
+                currentAppRoutingId()?.let { put("appRoutingId", it) }
+            }
+        )
+
+        return when (outcome) {
+            is StartPasskeySessionOutcome.Waived -> waivedFlowResult(outcome.start)
+            is StartPasskeySessionOutcome.Hosted -> {
+                val start = outcome.start
+                when (start.flowType) {
+                    PasskeyFlowType.REGISTRATION -> {
+                        runHostedCeremony(
+                            activity = activity,
+                            session = outcome.session,
+                            flowType = PendingPasskeyFlowType.REGISTRATION
+                        )
+                        val completion = completeAndClear(
+                            session = outcome.session,
+                            path = "/passkeys/complete-device-binding",
+                            resultParser = PasskeyJson::deviceBindingCompletion
+                        )
+                        val agentic = PasskeyJson.agenticOutcome(
+                            network = start.network,
+                            vicEnrolled = completion.vicEnrolled,
+                            vicEnrollment = completion.vicEnrollment,
+                            bindingSucceeded = completion.success,
+                            strict = true
+                        )
+                        PasskeyFlowResult(
+                            success = completion.success && agentic.enrolled,
+                            status = if (completion.success) PasskeyFlowStatus.REGISTERED else PasskeyFlowStatus.FAILED,
+                            flowType = PasskeyFlowType.REGISTRATION,
+                            vicEnrolled = agentic.enrolled,
+                            network = start.network,
+                            vicError = agentic.error,
+                            enrollmentId = completion.enrollmentId ?: start.enrollmentId,
+                            message = completion.message
+                        )
+                    }
+                    PasskeyFlowType.AUTHENTICATION -> {
+                        runHostedCeremony(
+                            activity = activity,
+                            session = outcome.session,
+                            flowType = PendingPasskeyFlowType.AUTHENTICATION
+                        )
+                        val result = completeAndClear(
+                            session = outcome.session,
+                            path = "/passkeys/complete-authentication",
+                            resultParser = PasskeyJson::passkeyResult
+                        )
+                        PasskeyFlowResult(
+                            success = result.success,
+                            status = if (result.success) PasskeyFlowStatus.AUTHENTICATED else PasskeyFlowStatus.FAILED,
+                            flowType = PasskeyFlowType.AUTHENTICATION,
+                            vicEnrolled = start.vicEnrolled ?: (start.network != "visa"),
+                            network = start.network,
+                            enrollmentId = start.enrollmentId,
+                            paymentIntentId = result.paymentIntentId ?: start.paymentIntentId,
+                            message = result.message
+                        )
+                    }
+                    PasskeyFlowType.UNKNOWN ->
+                        throw PayOSError.InvalidState("Passkey start response was missing flowType")
+                }
+            }
+        }
+    }
+
+    fun authenticate(
+        activity: Activity,
+        callback: PayOSCallback<PasskeyFlowResult>
+    ) {
+        launchCallback(callback) {
+            authenticate(activity)
         }
     }
 
@@ -231,6 +346,30 @@ class PasskeysClient internal constructor(
         launchCallback(callback) {
             authenticate(activity, paymentIntentId, paymentId)
         }
+    }
+
+    private fun waivedFlowResult(start: StartSessionInfo): PasskeyFlowResult {
+        val flowType = if (start.flowType == PasskeyFlowType.UNKNOWN) PasskeyFlowType.REGISTRATION else start.flowType
+        val registration = flowType == PasskeyFlowType.REGISTRATION
+        val agentic = PasskeyJson.agenticOutcome(
+            network = start.network,
+            vicEnrolled = start.vicEnrolled,
+            vicEnrollment = start.vicEnrollment,
+            bindingSucceeded = true,
+            strict = registration
+        )
+        val passkeyOk = start.success != false
+        return PasskeyFlowResult(
+            success = passkeyOk && (!registration || agentic.enrolled),
+            status = if (passkeyOk) PasskeyFlowStatus.WAIVED else PasskeyFlowStatus.FAILED,
+            flowType = flowType,
+            vicEnrolled = agentic.enrolled,
+            network = start.network,
+            vicError = agentic.error,
+            enrollmentId = start.enrollmentId,
+            paymentIntentId = start.paymentIntentId,
+            message = start.message ?: "Passkey waived"
+        )
     }
 
     private suspend fun startSession(body: JSONObject): StartPasskeySessionOutcome {

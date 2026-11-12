@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "sessionId": "sessionId_sim",
+      "status": "failed",
+      "network": "visa",
+      "flowType": "registration",
+      "paymentIntentId": null,
+      "paymentId": null,
+      "cardId": null,
+      "enrollmentId": "enrollmentId_sim",
+      "expiresAt": "2099-01-01T00:10:00.000Z",
+      "completedAt": null,
+      "failedAt": "2099-01-01T00:10:00.000Z",
+      "errorCode": "passkey_cancelled",
+      "errorMessage": "User cancelled"
+    },
+    "environment": "sandbox"
+  }
+}

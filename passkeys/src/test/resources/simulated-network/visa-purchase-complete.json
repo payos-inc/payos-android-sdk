@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "error": false,
+    "data": {
+      "success": true,
+      "paymentIntentId": "paymentIntentId_sim",
+      "authValid": true,
+      "paymentId": null,
+      "message": "Authentication completed successfully"
+    },
+    "environment": "sandbox"
+  }
+}

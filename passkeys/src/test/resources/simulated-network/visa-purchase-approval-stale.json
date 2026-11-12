@@ -1,0 +1,9 @@
+{
+  "status": 409,
+  "body": {
+    "error": true,
+    "code": "approval_stale",
+    "message": "The payment intent changed after this approval started. Start the approval again.",
+    "environment": "sandbox"
+  }
+}

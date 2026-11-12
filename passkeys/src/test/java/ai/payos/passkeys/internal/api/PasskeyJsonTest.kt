@@ -67,7 +67,8 @@ class PasskeyJsonTest {
             )
         )
 
-        assertEquals(StartPasskeySessionOutcome.Waived, outcome)
+        assertTrue(outcome is StartPasskeySessionOutcome.Waived)
+        assertEquals("visa", (outcome as StartPasskeySessionOutcome.Waived).start.network)
     }
 
     @Test
